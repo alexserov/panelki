@@ -1570,7 +1570,7 @@
     ctx.fillRect(0, 30, W, 1);
 
     BMFont.draw(ctx, 'ЭТАЖ ' + S.panels.length, 21, 5, { scale: 1, color: '#e8e2cf' });
-    BMFont.draw(ctx, 'РЕКОРД ' + Math.max(bestFor(S.diff), S.maxFloor, S.panels.length), 21, 16, { scale: 1, color: '#8f8b7e' });
+    BMFont.draw(ctx, 'РЕКОРД ' + Math.max(bestFor(S.diff), S.maxFloor, S.panels.length) + ' · ' + diffObj().name, 21, 16, { scale: 1, color: '#8f8b7e' });
 
     // pause button at the top-left corner
     ctx.fillStyle = 'rgba(220,214,190,.12)';

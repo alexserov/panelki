@@ -1,7 +1,7 @@
 /* ПАНЕЛЬКИ — service worker (offline app shell) */
 'use strict';
 
-const VERSION = 'panelki-v3';
+const VERSION = 'panelki-v4';
 const CACHE = VERSION + '-shell';
 const INDEX = new URL('./index.html', self.location).href;
 
