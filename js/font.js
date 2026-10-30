@@ -82,6 +82,9 @@
 
   const GLYPHS = {};
   for (const k in RAW) GLYPHS[k] = RAW[k].split('/');
+  // Latin aliases for keys shown in the UI
+  GLYPHS['P'] = GLYPHS['Р'];
+  GLYPHS['M'] = GLYPHS['М'];
 
   const FALLBACK = GLYPHS['?'];
   const cache = new Map();

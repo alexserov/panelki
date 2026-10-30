@@ -6,10 +6,33 @@
   const H = Art.H;
   const GROUND = Art.GROUND;
   const PANEL_H = 30;
-  const BASE_W = 118;
+  const BASE_W = 132;
   const MIN_W = 14;
   const HELD_Y = 64;
-  const PROCHNOST_MAX = 3;
+
+  const DIFFS = {
+    easy: {
+      id: 'easy', name: 'ЛЕГКО', sub: 'ТИХИЙ ДВОР', color: '#7fe0b0',
+      speed: 0.78, bomb: 1.5, prochnost: 4, perfect: 4, ufo: 0.8
+    },
+    normal: {
+      id: 'normal', name: 'НОРМА', sub: 'ПАНЕЛЬНЫЙ ФРОНТ', color: '#e8e2cf',
+      speed: 1, bomb: 1, prochnost: 3, perfect: 2, ufo: 1
+    },
+    hard: {
+      id: 'hard', name: 'СЛОЖНО', sub: 'АВРАЛ', color: '#ff7a5a',
+      speed: 1.3, bomb: 0.68, prochnost: 2, perfect: 1, ufo: 1.25
+    }
+  };
+  const DIFF_ORDER = ['easy', 'normal', 'hard'];
+
+  const POWERUPS = {
+    repair: { name: 'РЕМОНТ', color: '#7fe0b0' },
+    shield: { name: 'ЩИТ', color: '#8fd0ff' },
+    slow: { name: 'ЗАМОРОЗКА', color: '#a8d8ff' },
+    magnet: { name: 'МАГНИТ', color: '#c9a0ff' }
+  };
+  const POWERUP_ORDER = ['repair', 'shield', 'slow', 'magnet'];
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -17,8 +40,22 @@
 
   const audio = new ChipAudio();
 
-  let best = 0;
-  try { best = parseInt(localStorage.getItem('panelki.best') || '0', 10) || 0; } catch (e) { best = 0; }
+  const bestByDiff = { easy: 0, normal: 0, hard: 0 };
+  try {
+    for (let i = 0; i < DIFF_ORDER.length; i++) {
+      bestByDiff[DIFF_ORDER[i]] = parseInt(localStorage.getItem('panelki.best.' + DIFF_ORDER[i]) || '0', 10) || 0;
+    }
+    const legacy = parseInt(localStorage.getItem('panelki.best') || '0', 10) || 0;
+    if (legacy > bestByDiff.normal) bestByDiff.normal = legacy;
+  } catch (e) { /* ignore */ }
+
+  function bestFor(id) { return bestByDiff[id] || 0; }
+  function loadDiff() {
+    try {
+      const d = localStorage.getItem('panelki.diff');
+      return DIFFS[d] ? d : 'normal';
+    } catch (e) { return 'normal'; }
+  }
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rnd = (a, b) => {
@@ -33,18 +70,27 @@
     mode: 'title',
     t: 0,
     camY: 0,
+    diff: loadDiff(),
+    paused: false,
     panels: [],
     held: null,
     heldDelay: 0,
     falling: null,
     bombs: [],
+    powerups: [],
+    ufo: null,
+    ufoTimer: 26,
+    shield: false,
+    slowTimer: 0,
+    magnetDrops: 0,
     particles: [],
     floats: [],
     toasts: [],
     banner: null,
     regime: 'stal',
     weather: 'snow',
-    prochnost: PROCHNOST_MAX,
+    prochnost: 3,
+    prochnostMax: 3,
     combo: 0,
     maxFloor: 1,
     weatherTimer: 999,
@@ -71,6 +117,7 @@
     bombDeflectPulse: 0
   };
 
+  function diffObj() { return DIFFS[S.diff] || DIFFS.normal; }
   function regimeObj() { return Art.REGIMES[S.regime] || Art.REGIMES.stal; }
   function weatherObj() { return Art.WEATHERS[S.weather] || Art.WEATHERS.clear; }
 
@@ -84,7 +131,9 @@
       regimes: 1,
       weathers: 1,
       graffiti: 0,
-      windows: 0
+      windows: 0,
+      ufos: 0,
+      powerups: 0
     };
   }
 
@@ -214,7 +263,7 @@
     ];
     S.groundElecs = [
       { x: 86, seed: 5 },
-      { x: 226, seed: 17 }
+      { x: 236, seed: 17 }
     ];
   }
 
@@ -222,18 +271,27 @@
     S.mode = 'title';
     S.t = 0;
     S.camY = 0;
+    S.paused = false;
+    audio.setPaused(false);
     S.panels = [];
     S.held = null;
     S.heldDelay = 0;
     S.falling = null;
     S.bombs = [];
+    S.powerups = [];
+    S.ufo = null;
+    S.ufoTimer = 999;
+    S.shield = false;
+    S.slowTimer = 0;
+    S.magnetDrops = 0;
     S.particles = [];
     S.floats = [];
     S.toasts = [];
     S.banner = null;
     S.regime = 'stal';
     S.weather = 'snow';
-    S.prochnost = PROCHNOST_MAX;
+    S.prochnostMax = diffObj().prochnost;
+    S.prochnost = S.prochnostMax;
     S.combo = 0;
     S.maxFloor = 1;
     S.shake = 0;
@@ -278,18 +336,27 @@
     S.mode = 'play';
     S.t = 0;
     S.camY = 0;
+    S.paused = false;
+    audio.setPaused(false);
     S.panels = [];
     S.held = null;
     S.heldDelay = 0.35;
     S.falling = null;
     S.bombs = [];
+    S.powerups = [];
+    S.ufo = null;
+    S.ufoTimer = rnd(22, 38) / diffObj().ufo;
+    S.shield = false;
+    S.slowTimer = 0;
+    S.magnetDrops = 0;
     S.particles = [];
     S.floats = [];
     S.toasts = [];
     S.banner = null;
     S.regime = 'stal';
     S.weather = 'clear';
-    S.prochnost = PROCHNOST_MAX;
+    S.prochnostMax = diffObj().prochnost;
+    S.prochnost = S.prochnostMax;
     S.combo = 0;
     S.maxFloor = 1;
     S.shake = 0;
@@ -302,7 +369,7 @@
     S.stats = freshStats();
     S.weatherTimer = 30;
     S.regimeTimer = 42;
-    S.bombTimer = 15;
+    S.bombTimer = 12 * diffObj().bomb + 3;
     S.eventTimer = 6;
     S.lightning = 6;
     S.lastTension = -1;
@@ -321,7 +388,7 @@
     audio.setTension(0);
     audio.setScene('play');
 
-    addBanner('СТРОЙКА НАЧАЛАСЬ', regimeObj().name + ' · ' + weatherObj().name, '#c4453f', 3);
+    addBanner('СТРОЙКА НАЧАЛАСЬ', diffObj().name + ' · ' + regimeObj().name + ' · ' + weatherObj().name, diffObj().color, 3);
     addToast('ПРОБЕЛ / КЛИК — БРОСИТЬ ПАНЕЛЬ', '#a8a294');
     addToast('СВАЙП ВЛЕВО-ВПРАВО — ОТБИТЬ БОМБУ', '#a8a294');
   }
@@ -432,6 +499,39 @@
   /* Actions                                                            */
   /* ------------------------------------------------------------------ */
 
+  function togglePause(force) {
+    if (S.mode !== 'play') return;
+    S.paused = force === undefined ? !S.paused : !!force;
+    if (S.paused) {
+      S.banner = null;
+      audio.setPaused(true);
+    } else {
+      audio.setPaused(false);
+    }
+  }
+
+  function cycleDifficulty(dir) {
+    const idx = DIFF_ORDER.indexOf(S.diff);
+    const next = (idx + dir + DIFF_ORDER.length) % DIFF_ORDER.length;
+    setDifficulty(DIFF_ORDER[next]);
+  }
+
+  function titleSoundTap() {
+    try { audio.init(); } catch (e) { /* ignore */ }
+    if (audio.muted) {
+      audio.toggleMute();
+    } else if (!audio.ctx || audio.ctx.state !== 'running') {
+      audio.init();
+    } else {
+      audio.toggleMute();
+    }
+    if (!audio.muted && S.mode === 'title') {
+      audio.setRegime(S.regime);
+      audio.setWeather(S.weather);
+      audio.setScene('title');
+    }
+  }
+
   function dropPanel() {
     if (S.mode !== 'play' || !S.held) return;
     const h = S.held;
@@ -456,12 +556,14 @@
     const overlap = right - left;
     const offset = f.x - top.x;
 
-    if (overlap < 6) {
+    const magnet = S.magnetDrops > 0;
+    const perfect = magnet || Math.abs(offset) <= diffObj().perfect;
+
+    if (!perfect && overlap < 6) {
       missPanel(f, offset);
       return;
     }
 
-    const perfect = Math.abs(offset) <= 2;
     let nx = left;
     let nw = Math.round(overlap);
     if (perfect) { nx = top.x; nw = top.w; }
@@ -471,7 +573,7 @@
       return;
     }
 
-    const spec = perfect ? f.spec : newSpec(nw, S.panels.length);
+    const spec = Math.round(f.w) === nw ? f.spec : newSpec(nw, S.panels.length);
     S.panels.push({ x: nx, w: nw, h: PANEL_H, yBase: topY, spec });
     S.maxFloor = Math.max(S.maxFloor, S.panels.length);
     S.falling = null;
@@ -483,11 +585,15 @@
     audio.land();
 
     if (perfect) {
+      if (magnet) {
+        S.magnetDrops--;
+        addFloat('МАГНИТ!', nx + nw / 2, sy - 20, '#8fd0ff', 1);
+      }
       S.combo++;
       audio.perfect();
       addFloat('ИДЕАЛЬНО!', nx + nw / 2, sy - 8, '#7fe0b0', 2);
       if (S.combo > 1 && S.combo % 5 === 0) addToast('ИДЕАЛЬНАЯ КЛАДКА x' + S.combo, '#7fe0b0');
-      if (S.combo % 4 === 0 && S.prochnost < PROCHNOST_MAX) {
+      if (S.combo % 4 === 0 && S.prochnost < S.prochnostMax) {
         S.prochnost++;
         addToast('ЗА КАЧЕСТВО: +1 ПРОЧНОСТЬ', '#7fe0b0');
       }
@@ -523,7 +629,7 @@
     if (S.panels.length % 15 === 0) changeRegime();
 
     // electrician climbs up to fix things
-    if (S.prochnost < PROCHNOST_MAX && S.panels.length > 2 && Math.random() < 0.2) {
+    if (S.prochnost < S.prochnostMax && S.panels.length > 2 && Math.random() < 0.2) {
       S.engineer = { idx: S.panels.length - 1, t: 4.2, seed: nowSeed() };
       addToast('ИНЖЕНЕР-ЭЛЕКТРИК ЛЕЗЕТ НА КРЫШУ', '#e0b23c');
     }
@@ -534,11 +640,17 @@
     f.vx = (offset >= 0 ? 1 : -1) * rnd(25, 60);
     f.vy = Math.max(f.vy, 70);
     f.life = 2.2;
-    S.prochnost--;
     S.combo = 0;
     S.shake = 6;
     audio.crash();
-    addToast('МИМО! ПАНЕЛЬ УЛЕТЕЛА ВО ДВОР', '#c9a05a');
+    if (S.shield) {
+      S.shield = false;
+      addToast('ЩИТ ПРИНЯЛ УДАР: ПАНЕЛЬ УЛЕТЕЛА, НО ДОМ ЦЕЛ', '#8fd0ff');
+      addFloat('ЩИТ', W / 2, 190, '#8fd0ff', 2);
+    } else {
+      S.prochnost--;
+      addToast('МИМО! ПАНЕЛЬ УЛЕТЕЛА ВО ДВОР', '#c9a05a');
+    }
     S.heldDelay = 0.8;
     if (S.prochnost <= 0) gameOver('miss');
   }
@@ -577,7 +689,7 @@
     });
     audio.warn();
     addToast('БОМБА! СВАЙПНИ ВЛЕВО ИЛИ ВПРАВО', '#ff7a5a');
-    S.bombTimer = 13 / Math.max(0.6, regimeObj().bomb) + rnd(2, 7);
+    S.bombTimer = (13 / Math.max(0.6, regimeObj().bomb)) * diffObj().bomb + rnd(2, 7);
   }
 
   function bombHit(b) {
@@ -588,6 +700,13 @@
     S.hitFlash = 1;
     S.stats.bombsHit++;
     explosion(b.x, Math.min(b.y, GROUND - 8), 34);
+    if (S.shield) {
+      S.shield = false;
+      audio.perfect();
+      addToast('ЩИТ ПРИНЯЛ БОМБУ. ДОМ ЦЕЛ', '#8fd0ff');
+      addFloat('ЩИТ', b.x, b.y - 18, '#8fd0ff', 2);
+      return;
+    }
 
     if (S.panels.length > 1) {
       const destroyed = S.panels.pop();
@@ -623,10 +742,13 @@
       if (S.bombs[i].whistle) { S.bombs[i].whistle(); S.bombs[i].whistle = null; }
     }
     S.bombs = [];
+    S.powerups = [];
+    S.ufo = null;
     const reached = Math.max(S.maxFloor, S.panels.length);
-    if (reached > best) {
-      best = reached;
-      try { localStorage.setItem('panelki.best', String(best)); } catch (e) { /* ignore */ }
+    const prevBest = bestByDiff[S.diff] || 0;
+    if (reached > prevBest) {
+      bestByDiff[S.diff] = reached;
+      try { localStorage.setItem('panelki.best.' + S.diff, String(reached)); } catch (e) { /* ignore */ }
     }
     audio.setScene('off');
     audio.gameover();
@@ -736,11 +858,163 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Communist aliens & power-ups                                       */
+  /* ------------------------------------------------------------------ */
+
+  function ufoBeamBottom() {
+    const p = topPanel();
+    return p ? panelScreenY(p) : GROUND - 80;
+  }
+
+  function spawnUFO() {
+    if (S.mode !== 'play' || S.ufo || S.powerups.length) return;
+    if (S.bombs.some((b) => !b.deflected)) return;
+    const top = topPanel();
+    if (!top || S.panels.length < 3) return;
+    const targetX = clamp(panelCenterX(top), 46, W - 46);
+    const dir = targetX > W / 2 ? 1 : -1;
+    S.ufo = {
+      x: dir > 0 ? -36 : W + 36,
+      y: 174,
+      dir,
+      targetX,
+      phase: 'enter',
+      dropTimer: 0,
+      beam: false,
+      seed: nowSeed() % 999
+    };
+    S.stats.ufos++;
+    audio.ufo();
+    addToast('ИНОПЛАНЕТЯНЕ-КОММУНИСТЫ ПРИБЫЛИ', '#e04a3a');
+  }
+
+  function updateUFO(dt) {
+    if (!S.ufo) {
+      S.ufoTimer -= dt;
+      if (S.ufoTimer <= 0) {
+        if (!S.bombs.some((b) => !b.deflected) && !S.banner && !S.powerups.length) spawnUFO();
+        else S.ufoTimer = 2.5;
+      }
+      return;
+    }
+    const u = S.ufo;
+    if (u.phase === 'enter') {
+      const step = 52 * dt;
+      if (u.dir > 0) {
+        u.x += step;
+        if (u.x >= u.targetX) {
+          u.x = u.targetX;
+          u.phase = 'drop';
+          u.dropTimer = 1.2;
+          u.beam = true;
+          dropPowerup(u);
+        }
+      } else {
+        u.x -= step;
+        if (u.x <= u.targetX) {
+          u.x = u.targetX;
+          u.phase = 'drop';
+          u.dropTimer = 1.2;
+          u.beam = true;
+          dropPowerup(u);
+        }
+      }
+    } else if (u.phase === 'drop') {
+      u.dropTimer -= dt;
+      u.beam = true;
+      if (u.dropTimer <= 0) {
+        u.phase = 'exit';
+        u.beam = false;
+      }
+    } else {
+      u.x += u.dir * 44 * dt;
+      if (u.x < -60 || u.x > W + 60) {
+        S.ufo = null;
+        S.ufoTimer = rnd(34, 58) / diffObj().ufo;
+      }
+    }
+  }
+
+  function dropPowerup(u) {
+    const type = pick(POWERUP_ORDER);
+    S.powerups.push({
+      x: u.x,
+      y: 196,
+      type,
+      phase: rnd(0, 6.28),
+      life: 7.5,
+      color: POWERUPS[type].color
+    });
+    addToast('БОНУС «' + POWERUPS[type].name + '» — ТАПНИ ПО ЗВЕЗДЕ', POWERUPS[type].color);
+    audio.powerupDrop();
+  }
+
+  function updatePowerups(dt) {
+    for (let i = S.powerups.length - 1; i >= 0; i--) {
+      const p = S.powerups[i];
+      p.life -= dt;
+      if (p.life <= 0) {
+        S.powerups.splice(i, 1);
+        addToast('БОНУС УПУЩЕН', '#8f8b7e');
+      }
+    }
+  }
+
+  function applyPowerup(p) {
+    const type = p.type;
+    S.stats.powerups++;
+    if (type === 'repair') {
+      if (S.prochnost < S.prochnostMax) {
+        S.prochnost++;
+        addToast('БОНУС: РЕМОНТ +1 ПРОЧНОСТЬ', POWERUPS.repair.color);
+      } else {
+        S.shield = true;
+        addToast('ДОМ ЦЕЛ, ПОЭТОМУ ДАЛИ ЩИТ', POWERUPS.shield.color);
+      }
+    } else if (type === 'shield') {
+      S.shield = true;
+      addToast('БОНУС: ЩИТ ОТ БОМБЫ', POWERUPS.shield.color);
+    } else if (type === 'slow') {
+      S.slowTimer = Math.max(S.slowTimer, 15);
+      addToast('БОНУС: КРАН ЗАМЕДЛЕН НА 15 СЕК', POWERUPS.slow.color);
+    } else {
+      S.magnetDrops = Math.max(S.magnetDrops, 2);
+      addToast('БОНУС: МАГНИТ — 2 ИДЕАЛЬНЫЕ ПАНЕЛИ', POWERUPS.magnet.color);
+    }
+    audio.powerup();
+    for (let i = 0; i < 16; i++) {
+      particle({
+        x: p.x + rnd(-5, 5), y: p.y + rnd(-5, 5),
+        vx: rnd(-70, 70), vy: rnd(-90, 10),
+        life: rnd(0.4, 0.9), max: 0.9,
+        color: pick([POWERUPS[type].color, '#f2c14a', '#e8e2cf']),
+        size: rndInt(1, 2), grav: 60
+      });
+    }
+    addFloat(POWERUPS[type].name, p.x, p.y - 26, POWERUPS[type].color, 1);
+  }
+
+  function collectPowerupAt(x, y) {
+    for (let i = S.powerups.length - 1; i >= 0; i--) {
+      const p = S.powerups[i];
+      const dx = x - p.x;
+      const dy = y - p.y;
+      if (dx * dx + dy * dy <= 24 * 24) {
+        S.powerups.splice(i, 1);
+        applyPowerup(p);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Update                                                             */
   /* ------------------------------------------------------------------ */
 
   function update(dt) {
     S.t += dt;
+    if (S.mode === 'play' && S.paused) return;
 
     if (S.shake > 0) S.shake = Math.max(0, S.shake - dt * 16);
     if (S.flash > 0) S.flash = Math.max(0, S.flash - dt * 2.4);
@@ -783,7 +1057,8 @@
 
     if (S.held) {
       const boost = S.weather === 'storm' ? 1.4 : S.weather === 'rain' ? 1.18 : 1;
-      const speed = (44 + Math.min(76, S.panels.length * 2.4)) * boost;
+      const slow = S.slowTimer > 0 ? 0.55 : 1;
+      const speed = (44 + Math.min(76, S.panels.length * 2.4)) * boost * diffObj().speed * slow;
       S.held.speed = speed;
       S.held.x += S.held.dir * speed * dt;
       const minX = 8;
@@ -799,6 +1074,9 @@
     updateBombs(dt);
     updateEngineer(dt);
     updateRoofRat(dt);
+    updateUFO(dt);
+    updatePowerups(dt);
+    if (S.slowTimer > 0) S.slowTimer = Math.max(0, S.slowTimer - dt);
 
     // fire / smoke
     for (let i = 0; i < S.panels.length; i++) {
@@ -996,7 +1274,7 @@
       });
     }
     if (S.engineer.t <= 0) {
-      if (S.prochnost < PROCHNOST_MAX) {
+      if (S.prochnost < S.prochnostMax) {
         S.prochnost++;
         addToast('ЭЛЕКТРИК ПОЧИНИЛ ПРОВОДКУ: +1 ПРОЧНОСТЬ', '#7fe0b0');
         audio.perfect();
@@ -1067,6 +1345,7 @@
     }
 
     drawEngineer();
+    drawAliens();
     drawBombs();
     drawParticles();
     drawFloats();
@@ -1088,6 +1367,8 @@
       drawToasts();
       drawBanner();
       drawTicker();
+      drawPowerupStatus();
+      if (S.paused) drawPause();
     } else if (S.mode === 'title') {
       drawTitle();
     } else {
@@ -1096,6 +1377,40 @@
 
     drawGrain();
     Art.drawVignette(ctx);
+  }
+
+  function drawPause() {
+    const rg = regimeObj();
+    ctx.fillStyle = 'rgba(4,4,8,.95)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(4,4,8,.98)';
+    ctx.fillRect(0, 0, W, 111);
+    ctx.fillStyle = 'rgba(220,214,190,.16)';
+    ctx.fillRect(0, 110, W, 1);
+    ctx.fillStyle = '#e8e2cf';
+    ctx.fillRect(W / 2 - 12, 28, 7, 18);
+    ctx.fillRect(W / 2 + 5, 28, 7, 18);
+    BMFont.draw(ctx, 'ПАУЗА', W / 2, 50, {
+      scale: 3, spacing: 2, color: '#e8e2cf', align: 'center', shadow: '#000'
+    });
+    BMFont.draw(ctx, 'ИГРА НА ПАУЗЕ', W / 2, 86, {
+      scale: 1, color: '#9c9888', align: 'center'
+    });
+    Art.drawWatermark(ctx, rg, S.t, 'over');
+    const pulse = 0.6 + 0.4 * Math.abs(Math.sin(S.t * 2.8));
+    ctx.fillStyle = 'rgba(4,4,8,.55)';
+    ctx.fillRect(0, 170, W, 56);
+    ctx.fillStyle = 'rgba(5,5,9,.7)';
+    ctx.fillRect(W / 2 - 118, 176, 236, 12);
+    BMFont.draw(ctx, 'ПРОДОЛЖИТЬ — Р / ПРОБЕЛ / ТАП', W / 2, 180, {
+      scale: 1, color: '#e8e2cf', align: 'center', shadow: '#000', alpha: pulse
+    });
+    BMFont.draw(ctx, 'СЛОЖНОСТЬ: ' + diffObj().name + ' · РЕКОРД ' + bestFor(S.diff), W / 2, 200, {
+      scale: 1, color: diffObj().color, align: 'center'
+    });
+    BMFont.draw(ctx, 'М — ЗВУК', W / 2, 214, {
+      scale: 1, color: '#8f8b7e', align: 'center'
+    });
   }
 
   function drawTower() {
@@ -1150,6 +1465,35 @@
     if (!p) return;
     const sy = panelScreenY(p);
     Art.drawElectrician(ctx, p.x + p.w * 0.62, sy - 11, S.engineer.seed, S.t);
+  }
+
+  function drawAliens() {
+    if (S.ufo) Art.drawUFO(ctx, S.ufo, S.t, ufoBeamBottom());
+    for (let i = 0; i < S.powerups.length; i++) {
+      const p = S.powerups[i];
+      Art.drawPowerup(ctx, p, S.t);
+      BMFont.draw(ctx, 'ТАПНИ', p.x, p.y + 21, {
+        scale: 1, color: p.color, align: 'center', alpha: 0.7 + 0.3 * Math.abs(Math.sin(S.t * 4))
+      });
+    }
+  }
+
+  function drawPowerupStatus() {
+    const parts = [];
+    if (S.shield) parts.push({ text: 'ЩИТ', color: POWERUPS.shield.color });
+    if (S.slowTimer > 0) parts.push({ text: 'ЗАМОРОЗКА ' + Math.ceil(S.slowTimer) + 'С', color: POWERUPS.slow.color });
+    if (S.magnetDrops > 0) parts.push({ text: 'МАГНИТ ' + S.magnetDrops, color: POWERUPS.magnet.color });
+    if (!parts.length) return;
+    let w = 0;
+    for (let i = 0; i < parts.length; i++) w += BMFont.measure(parts[i].text, 1, 1) + (i ? 8 : 0);
+    const y = H - 24;
+    ctx.fillStyle = 'rgba(7,7,11,.58)';
+    ctx.fillRect(W / 2 - w / 2 - 4, y - 3, w + 8, 11);
+    let x = W / 2 - w / 2;
+    for (let i = 0; i < parts.length; i++) {
+      BMFont.draw(ctx, parts[i].text, x, y, { scale: 1, color: parts[i].color, shadow: '#000' });
+      x += BMFont.measure(parts[i].text, 1, 1) + 8;
+    }
   }
 
   function drawBombs() {
@@ -1225,12 +1569,30 @@
     ctx.fillStyle = 'rgba(220,214,190,.13)';
     ctx.fillRect(0, 30, W, 1);
 
-    BMFont.draw(ctx, 'ЭТАЖ ' + S.panels.length, 6, 5, { scale: 1, color: '#e8e2cf' });
-    BMFont.draw(ctx, 'РЕКОРД ' + Math.max(best, S.maxFloor, S.panels.length), 6, 16, { scale: 1, color: '#8f8b7e' });
+    BMFont.draw(ctx, 'ЭТАЖ ' + S.panels.length, 21, 5, { scale: 1, color: '#e8e2cf' });
+    BMFont.draw(ctx, 'РЕКОРД ' + Math.max(bestFor(S.diff), S.maxFloor, S.panels.length), 21, 16, { scale: 1, color: '#8f8b7e' });
+
+    // pause button at the top-left corner
+    ctx.fillStyle = 'rgba(220,214,190,.12)';
+    ctx.fillRect(3, 3, 15, 15);
+    ctx.fillStyle = 'rgba(220,214,190,.28)';
+    ctx.fillRect(3, 3, 15, 1);
+    ctx.fillRect(3, 17, 15, 1);
+    ctx.fillStyle = '#d8d2bd';
+    if (S.paused) {
+      ctx.fillRect(8, 6, 1, 9);
+      ctx.fillRect(9, 7, 1, 7);
+      ctx.fillRect(10, 8, 1, 5);
+      ctx.fillRect(11, 10, 1, 1);
+    } else {
+      ctx.fillRect(8, 6, 2, 9);
+      ctx.fillRect(12, 6, 2, 9);
+    }
 
     BMFont.draw(ctx, 'ПРОЧНОСТЬ', W / 2, 4, { scale: 1, color: '#9c9888', align: 'center' });
-    const iconsX = W / 2 - 13;
-    for (let i = 0; i < PROCHNOST_MAX; i++) {
+    const totalIcons = S.prochnostMax * 10 - 2;
+    const iconsX = Math.round(W / 2 - totalIcons / 2);
+    for (let i = 0; i < S.prochnostMax; i++) {
       const x = iconsX + i * 10;
       const on = i < S.prochnost;
       ctx.fillStyle = on ? '#c9c3b0' : '#33323a';
@@ -1271,6 +1633,7 @@
   function drawBanner() {
     if (!S.banner) return;
     if (S.bombs.some((b) => !b.deflected)) return;
+    if (S.ufo) return;
     const b = S.banner;
     const a = Math.min(1, b.t * 4, (b.dur - b.t) * 2);
     if (a <= 0) return;
@@ -1328,6 +1691,21 @@
     BMFont.draw(ctx, txt, x, H - 11, { scale: 1, color: rg.accent, alpha: 0.65, spacing: 1 });
   }
 
+  const DIFF_MENU = { y: 90, h: 16, w: 60, gap: 4 };
+
+  function diffBox(i) {
+    const total = DIFF_ORDER.length * DIFF_MENU.w + (DIFF_ORDER.length - 1) * DIFF_MENU.gap;
+    const x0 = Math.round((W - total) / 2);
+    return { x: x0 + i * (DIFF_MENU.w + DIFF_MENU.gap), y: DIFF_MENU.y, w: DIFF_MENU.w, h: DIFF_MENU.h };
+  }
+
+  function setDifficulty(id, silent) {
+    if (!DIFFS[id]) return;
+    S.diff = id;
+    try { localStorage.setItem('panelki.diff', id); } catch (e) { /* ignore */ }
+    if (!silent) audio.click();
+  }
+
   function drawTitle() {
     BMFont.draw(ctx, 'ПАНЕЛЬКИ', W / 2, 24, {
       scale: 3, spacing: 2, color: '#e8e2cf', align: 'center', shadow: '#000', alpha: 0.96
@@ -1335,7 +1713,7 @@
     BMFont.draw(ctx, 'ИГРА ПРО ДОМ, БОМБЫ И ПОГОДУ', W / 2, 52, {
       scale: 1, color: '#b9b19b', align: 'center', alpha: 0.9
     });
-    BMFont.draw(ctx, '8 БИТ · ОДИН ДОМ · ВСЯ ЭПОХА', W / 2, 63, {
+    BMFont.draw(ctx, '8 БИТ · ПОГОДА · КУРС · ВСЯ ЭПОХА', W / 2, 63, {
       scale: 1, color: '#7f7a6c', align: 'center', alpha: 0.8
     });
 
@@ -1343,29 +1721,60 @@
     BMFont.draw(ctx, 'СЕГОДНЯ: ' + regimeObj().name + ' · ' + weatherObj().name, 8, 9, {
       scale: 1, color: regimeObj().accent, alpha: 0.7
     });
-    BMFont.draw(ctx, (audio.muted ? 'ЗВУК ВЫКЛ' : 'ЗВУК ВКЛ'), W - 8, 9, {
-      scale: 1, color: '#7f7a6c', align: 'right', alpha: 0.7
+    let soundLabel = 'МУЗЫКА: НАЖМИ';
+    if (audio.muted) soundLabel = 'ЗВУК ВЫКЛ';
+    else if (audio.ctx && audio.ctx.state === 'running') soundLabel = 'МУЗЫКА ВКЛ';
+    const sw = BMFont.measure(soundLabel, 1, 1);
+    ctx.fillStyle = audio.muted ? 'rgba(14,13,20,.7)' : 'rgba(30,24,16,.7)';
+    ctx.fillRect(W - 8 - sw - 4, 5, sw + 8, 12);
+    ctx.fillStyle = audio.muted ? 'rgba(150,145,120,.22)' : 'rgba(201,160,90,.35)';
+    ctx.fillRect(W - 8 - sw - 4, 5, sw + 8, 1);
+    BMFont.draw(ctx, soundLabel, W - 8, 9, {
+      scale: 1, color: audio.muted ? '#6a665c' : '#c9a05a', align: 'right', alpha: 0.9
     });
 
-    if (best > 0) {
-      BMFont.draw(ctx, 'РЕКОРД: ' + best, W / 2, 166, {
-        scale: 1, color: '#c9a05a', align: 'center', alpha: 0.9
+    // difficulty selector
+    BMFont.draw(ctx, 'СЛОЖНОСТЬ', W / 2, 78, { scale: 1, color: '#9c9888', align: 'center' });
+    for (let i = 0; i < DIFF_ORDER.length; i++) {
+      const id = DIFF_ORDER[i];
+      const d = DIFFS[id];
+      const b = diffBox(i);
+      const selected = S.diff === id;
+      ctx.fillStyle = selected ? d.color : 'rgba(14,13,20,.8)';
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.fillStyle = selected ? '#0b0b10' : 'rgba(220,214,190,.28)';
+      if (selected) {
+        ctx.fillRect(b.x, b.y, b.w, 1);
+        ctx.fillRect(b.x, b.y + b.h - 1, b.w, 1);
+        ctx.fillRect(b.x, b.y, 1, b.h);
+        ctx.fillRect(b.x + b.w - 1, b.y, 1, b.h);
+      } else {
+        ctx.fillRect(b.x, b.y, b.w, 1);
+        ctx.fillRect(b.x, b.y + b.h - 1, b.w, 1);
+      }
+      BMFont.draw(ctx, d.name, b.x + b.w / 2, b.y + 5, {
+        scale: 1, color: selected ? '#0b0b10' : d.color, align: 'center'
       });
     }
+
+    const titleBest = bestFor(S.diff);
+    BMFont.draw(ctx, diffObj().sub + (titleBest > 0 ? ' · РЕКОРД ' + titleBest : ''), W / 2, 166, {
+      scale: 1, color: '#c9a05a', align: 'center', alpha: 0.9
+    });
     const pulse = 0.6 + 0.4 * Math.abs(Math.sin(S.t * 2.6));
-    BMFont.draw(ctx, 'НАЖМИ ПРОБЕЛ', W / 2, 180, {
+    BMFont.draw(ctx, 'НАЖМИ ПРОБЕЛ', W / 2, 178, {
       scale: 2, color: '#e8e2cf', align: 'center', shadow: '#000', alpha: pulse
     });
-    BMFont.draw(ctx, 'ИЛИ КОСНИСЬ ЭКРАНА', W / 2, 198, {
+    BMFont.draw(ctx, 'ИЛИ ВЫБЕРИ СЛОЖНОСТЬ И КОСНИСЬ ЭКРАНА', W / 2, 196, {
       scale: 1, color: '#9c9888', align: 'center'
     });
-    BMFont.draw(ctx, 'ПРОБЕЛ / КЛИК — БРОСИТЬ ПАНЕЛЬ', W / 2, 212, {
+    BMFont.draw(ctx, 'ПРОБЕЛ / КЛИК — БРОСИТЬ ПАНЕЛЬ', W / 2, 208, {
       scale: 1, color: '#8f8b7e', align: 'center'
     });
-    BMFont.draw(ctx, 'СВАЙП ВЛЕВО ИЛИ ВПРАВО — ОТБИТЬ БОМБУ', W / 2, 224, {
+    BMFont.draw(ctx, 'СВАЙП ВЛЕВО ИЛИ ВПРАВО — ОТБИТЬ БОМБУ', W / 2, 220, {
       scale: 1, color: '#8f8b7e', align: 'center'
     });
-    BMFont.draw(ctx, 'ПОГОДА И КУРС МЕНЯЮТСЯ САМИ', W / 2, 236, {
+    BMFont.draw(ctx, '1/2/3 — СЛОЖНОСТЬ · Р — ПАУЗА', W / 2, 232, {
       scale: 1, color: '#6f6a5e', align: 'center'
     });
   }
@@ -1420,7 +1829,7 @@
     BMFont.draw(ctx, overReasonText(S.overReason), W / 2, 60, {
       scale: 1, color: rg.accent, align: 'center'
     });
-    BMFont.draw(ctx, 'ЭТАЖЕЙ ' + S.panels.length + ' · РЕКОРД ' + best, W / 2, 76, {
+    BMFont.draw(ctx, 'ЭТАЖЕЙ ' + S.panels.length + ' · РЕКОРД ' + bestFor(S.diff) + ' · ' + diffObj().name, W / 2, 76, {
       scale: 1, color: '#c9a05a', align: 'center'
     });
 
@@ -1439,7 +1848,7 @@
     BMFont.draw(ctx, 'ОТБИТО БОМБ ' + S.stats.bombsSwiped + ' · ПОПАДАНИЙ ' + S.stats.bombsHit, W / 2, 216, {
       scale: 1, color: '#c9a05a', align: 'center'
     });
-    BMFont.draw(ctx, 'СМЕН КУРСА ' + Math.max(0, S.stats.regimes - 1) + ' · СМЕН ПОГОДЫ ' + Math.max(0, S.stats.weathers - 1), W / 2, 228, {
+    BMFont.draw(ctx, 'БОНУСЫ ' + S.stats.powerups + ' · НЛО ' + S.stats.ufos + ' · СМЕНЫ ' + Math.max(0, S.stats.regimes - 1) + '/' + Math.max(0, S.stats.weathers - 1), W / 2, 228, {
       scale: 1, color: '#8f8b7e', align: 'center'
     });
 
@@ -1482,6 +1891,18 @@
     try { audio.init(); } catch (err) { /* ignore */ }
     const pos = canvasPos(e);
     if (S.mode === 'title') {
+      if (pos.y < 22 && pos.x > W - 104) {
+        titleSoundTap();
+        return;
+      }
+      for (let i = 0; i < DIFF_ORDER.length; i++) {
+        const b = diffBox(i);
+        if (pos.x >= b.x && pos.x <= b.x + b.w && pos.y >= b.y && pos.y <= b.y + b.h) {
+          setDifficulty(DIFF_ORDER[i]);
+          startGame();
+          return;
+        }
+      }
       startGame();
       return;
     }
@@ -1489,6 +1910,15 @@
       if (S.overTimer > 0.9) startGame();
       return;
     }
+    if (S.paused) {
+      togglePause(false);
+      return;
+    }
+    if (pos.x >= 2 && pos.x <= 20 && pos.y >= 2 && pos.y <= 20) {
+      togglePause(true);
+      return;
+    }
+    if (collectPowerupAt && collectPowerupAt(pos.x, pos.y)) return;
     ptr = { x: pos.x, y: pos.y, swiped: false, moved: false, id: e.pointerId };
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
   });
@@ -1517,12 +1947,20 @@
   window.addEventListener('pointercancel', () => { ptr = null; });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && S.mode === 'play' && !S.paused) togglePause(true);
+  });
+
   window.addEventListener('keydown', (e) => {
     const key = e.key;
     const isSpace = key === ' ' || key === 'Spacebar' || key === 'Enter';
     const isLeft = key === 'ArrowLeft' || key === 'a' || key === 'A' || key === 'ф' || key === 'Ф';
     const isRight = key === 'ArrowRight' || key === 'd' || key === 'D' || key === 'в' || key === 'В';
-    if (isSpace || isLeft || isRight) e.preventDefault();
+    const isUp = key === 'ArrowUp' || key === 'w' || key === 'W' || key === 'ц' || key === 'Ц';
+    const isDown = key === 'ArrowDown' || key === 's' || key === 'S' || key === 'ы' || key === 'Ы';
+    const isPause = key === 'p' || key === 'P' || key === 'з' || key === 'З' || key === 'Escape' || key === 'Esc';
+    const isDigit = key === '1' || key === '2' || key === '3';
+    if (isSpace || isLeft || isRight || isUp || isDown || isPause || isDigit) e.preventDefault();
     try { audio.init(); } catch (err) { /* ignore */ }
 
     if (key === 'm' || key === 'M' || key === 'ь' || key === 'Ь') {
@@ -1532,11 +1970,26 @@
     }
 
     if (S.mode === 'title') {
+      if (isDigit) {
+        setDifficulty(DIFF_ORDER[Number(key) - 1]);
+        return;
+      }
+      if (isLeft || isUp) { cycleDifficulty(-1); return; }
+      if (isRight || isDown) { cycleDifficulty(1); return; }
       if (isSpace) startGame();
       return;
     }
     if (S.mode === 'over') {
       if (isSpace && S.overTimer > 0.9) startGame();
+      return;
+    }
+
+    if (S.paused) {
+      if (isPause || isSpace) togglePause(false);
+      return;
+    }
+    if (isPause) {
+      togglePause(true);
       return;
     }
 
@@ -1552,11 +2005,16 @@
   function fit() {
     const mobile = window.innerWidth < 560;
     const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    const maxW = window.innerWidth - (mobile ? 8 : 28);
-    const maxH = window.innerHeight - (standalone ? 16 : mobile ? 16 : 58);
+    const maxW = mobile ? window.innerWidth : window.innerWidth - 28;
+    const maxH = standalone ? window.innerHeight : mobile ? window.innerHeight : window.innerHeight - 58;
     let scale = Math.min(maxW / W, maxH / H);
-    if (scale >= 2) scale = Math.floor(scale);
-    else scale = Math.max(0.55, Math.floor(scale * 20) / 20);
+    if (mobile) {
+      scale = Math.max(0.55, Math.floor(scale * 1000) / 1000);
+    } else if (scale >= 2) {
+      scale = Math.floor(scale);
+    } else {
+      scale = Math.max(0.55, Math.floor(scale * 20) / 20);
+    }
     canvas.style.width = Math.round(W * scale) + 'px';
     canvas.style.height = Math.round(H * scale) + 'px';
   }
@@ -1574,12 +2032,19 @@
 
   resetTitle();
   fit();
+  try {
+    audio.init();
+    audio.setRegime(S.regime);
+    audio.setWeather(S.weather);
+    audio.setScene('title');
+  } catch (e) { /* autoplay may be blocked until the first gesture */ }
   requestAnimationFrame(frame);
 
   // expose for debugging / evidence / automated screenshots
   window.__PANELKI = {
     S, startGame, resetTitle, deflectBomb, dropPanel, gameOver,
-    changeWeather, changeRegime, spawnBomb, makeHeld, initWeatherParts,
-    countHouse, audio, Art
+    changeWeather, changeRegime, spawnBomb, spawnUFO, dropPowerup,
+    collectPowerupAt, togglePause, setDifficulty, DIFFS, POWERUPS,
+    makeHeld, initWeatherParts, countHouse, audio, Art
   };
 })();

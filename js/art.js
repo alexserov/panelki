@@ -1514,6 +1514,157 @@
     for (let y = 0; y < H; y += 2) ctx.fillRect(0, y, W, 1);
   }
 
+  function drawUFO(ctx, ufo, t, beamBottom) {
+    const x = Math.round(ufo.x);
+    const y = Math.round(ufo.y);
+
+    // tractor beam
+    if (ufo.beam && beamBottom && beamBottom > y) {
+      const bottom = Math.round(beamBottom);
+      ctx.fillStyle = 'rgba(240,90,100,.10)';
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y + 9);
+      ctx.lineTo(x + 9, y + 9);
+      ctx.lineTo(x + 25, bottom);
+      ctx.lineTo(x - 25, bottom);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,150,160,.14)';
+      for (let yy = y + 12; yy < bottom; yy += 6) {
+        const half = 9 + (yy - y) * 0.18;
+        ctx.fillRect(Math.round(x - half), yy, Math.round(half * 2), 1);
+      }
+    }
+
+    // glow
+    ctx.fillStyle = 'rgba(240,80,90,.08)';
+    ctx.fillRect(x - 30, y - 18, 60, 38);
+
+    // glass dome
+    ctx.fillStyle = 'rgba(150,205,220,.26)';
+    ctx.fillRect(x - 12, y - 12, 24, 9);
+    ctx.fillRect(x - 10, y - 14, 20, 2);
+    ctx.fillStyle = 'rgba(210,240,250,.35)';
+    ctx.fillRect(x - 7, y - 12, 7, 1);
+
+    // communist alien
+    ctx.fillStyle = '#6fae62';
+    ctx.fillRect(x - 5, y - 10, 10, 7);
+    ctx.fillRect(x - 4, y - 12, 8, 2);
+    ctx.fillStyle = '#0c0f0c';
+    ctx.fillRect(x - 4, y - 9, 2, 3);
+    ctx.fillRect(x + 2, y - 9, 2, 3);
+    ctx.fillStyle = '#e8e2cf';
+    ctx.fillRect(x - 4, y - 9, 1, 1);
+    ctx.fillRect(x + 2, y - 9, 1, 1);
+    // antenna + red star
+    ctx.fillStyle = '#8a5a3a';
+    ctx.fillRect(x - 1, y - 16, 1, 4);
+    ctx.fillStyle = '#e04a3a';
+    ctx.fillRect(x - 2, y - 18, 3, 1);
+    ctx.fillRect(x - 1, y - 19, 1, 3);
+    // red scarf
+    ctx.fillStyle = '#b8323a';
+    ctx.fillRect(x - 5, y - 5, 10, 2);
+
+    // hull
+    ctx.fillStyle = '#4a444c';
+    ctx.fillRect(x - 15, y - 4, 30, 2);
+    ctx.fillStyle = '#9e2f2f';
+    const rows = [22, 27, 26, 22, 16, 9];
+    for (let i = 0; i < rows.length; i++) {
+      const w = rows[i] * 2;
+      ctx.fillRect(x - w / 2, y - 2 + i * 2, w, 2);
+    }
+    ctx.fillStyle = '#d9d0b8';
+    ctx.fillRect(x - 26, y + 2, 52, 1);
+    ctx.fillRect(x - 22, y + 8, 44, 1);
+    ctx.fillStyle = '#5a2a2a';
+    ctx.fillRect(x - 18, y + 10, 36, 2);
+    ctx.fillStyle = '#e6dfc5';
+    BMFont.draw(ctx, 'СССР', x, y + 1, { scale: 1, color: '#f0e6cc', align: 'center', shadow: '#4a0c0c' });
+
+    // star + blinking lights
+    ctx.fillStyle = '#f2c14a';
+    ctx.fillRect(x - 21, y + 3, 3, 1);
+    ctx.fillRect(x - 20, y + 2, 1, 3);
+    const blink = Math.sin(t * 7) > 0;
+    ctx.fillStyle = blink ? '#ffe0a0' : '#e04a3a';
+    ctx.fillRect(x - 24, y + 6, 2, 1);
+    ctx.fillRect(x + 22, y + 6, 2, 1);
+    ctx.fillStyle = blink ? '#e04a3a' : '#ffe0a0';
+    ctx.fillRect(x - 12, y + 7, 2, 1);
+    ctx.fillRect(x + 10, y + 7, 2, 1);
+  }
+
+  function drawPowerup(ctx, p, t) {
+    const x = Math.round(p.x);
+    const y = Math.round(p.y + Math.sin(t * 2.6 + p.phase) * 1.5);
+    const color = p.color || '#f2c14a';
+    const pulse = 0.45 + 0.55 * Math.abs(Math.sin(t * 5 + p.phase));
+
+    // glow
+    ctx.fillStyle = 'rgba(140,220,255,' + (0.08 + pulse * 0.06).toFixed(2) + ')';
+    ctx.fillRect(x - 14, y - 16, 28, 28);
+
+    // parachute
+    ctx.fillStyle = '#d9d0b8';
+    ctx.fillRect(x - 9, y - 22, 18, 4);
+    ctx.fillRect(x - 6, y - 24, 12, 2);
+    ctx.fillStyle = '#9e2f2f';
+    ctx.fillRect(x - 9, y - 20, 18, 1);
+    ctx.fillStyle = 'rgba(220,214,190,.55)';
+    ctx.fillRect(x - 8, y - 18, 1, 8);
+    ctx.fillRect(x + 7, y - 18, 1, 8);
+
+    // crate
+    ctx.fillStyle = '#8a2b2b';
+    ctx.fillRect(x - 8, y - 8, 16, 16);
+    ctx.fillStyle = '#d9c46a';
+    ctx.fillRect(x - 8, y - 8, 16, 1);
+    ctx.fillRect(x - 8, y + 7, 16, 1);
+    ctx.fillRect(x - 8, y - 8, 1, 16);
+    ctx.fillRect(x + 7, y - 8, 1, 16);
+    ctx.fillStyle = color;
+    ctx.fillRect(x - 7, y - 7, 14, 2);
+    // star
+    ctx.fillStyle = '#f2c14a';
+    ctx.fillRect(x - 1, y - 3, 3, 1);
+    ctx.fillRect(x - 2, y - 2, 5, 1);
+    ctx.fillRect(x - 3, y - 1, 7, 1);
+    ctx.fillRect(x - 2, y, 5, 1);
+    ctx.fillRect(x - 4, y + 1, 9, 1);
+    ctx.fillRect(x - 3, y + 2, 7, 1);
+    // type icon
+    ctx.fillStyle = color;
+    if (p.type === 'repair') {
+      ctx.fillRect(x - 3, y + 4, 7, 1);
+      ctx.fillRect(x, y + 1, 1, 7);
+    } else if (p.type === 'shield') {
+      ctx.fillRect(x - 4, y + 3, 9, 1);
+      ctx.fillRect(x - 3, y + 4, 7, 1);
+      ctx.fillRect(x - 1, y + 5, 3, 2);
+    } else if (p.type === 'slow') {
+      ctx.fillRect(x - 4, y + 4, 9, 1);
+      ctx.fillRect(x, y + 1, 1, 7);
+      ctx.fillRect(x - 2, y + 2, 1, 1);
+      ctx.fillRect(x + 2, y + 2, 1, 1);
+    } else {
+      ctx.fillRect(x - 3, y + 3, 2, 5);
+      ctx.fillRect(x + 2, y + 3, 2, 5);
+      ctx.fillRect(x - 3, y + 6, 6, 1);
+      ctx.fillRect(x - 1, y + 2, 2, 1);
+    }
+
+    // pulsing ring
+    const r = 12 + Math.round(pulse * 3);
+    ctx.fillStyle = 'rgba(255,230,170,' + (0.35 * (1 - pulse * 0.4)).toFixed(2) + ')';
+    ctx.fillRect(x - r, y - 1, 2, 1);
+    ctx.fillRect(x + r, y - 1, 2, 1);
+    ctx.fillRect(x - 1, y - r, 1, 2);
+    ctx.fillRect(x - 1, y + r, 1, 2);
+  }
+
   window.Art = {
     W, H, GROUND,
     REGIMES, REGIME_ORDER, WEATHERS, WEATHER_ORDER, PALETTES, TAGS_LONG,
@@ -1521,7 +1672,7 @@
     makeSpec, addGraffiti, addPlant, addCat, breakWindow, addDirt, addCrack,
     drawPanel, drawWindow, drawCat, drawRat, drawHomeless, drawElectrician, drawPigeon,
     drawPlant,
-    drawCrane, drawBomb,
+    drawCrane, drawBomb, drawUFO, drawPowerup,
     drawBackground, drawGround, drawWatermark,
     drawRain, drawSnow, drawFog, drawVignette,
     drawLamp

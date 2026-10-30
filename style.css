@@ -125,9 +125,44 @@ html.standalone #stage::after {
   inset: 4px;
 }
 
+#backdrop {
+  display: none;
+}
+
 @media (max-width: 520px) {
   #hint { display: none; }
-  #stage { padding: 4px; }
-  #stage::after { inset: 4px; }
-  body { gap: 4px; }
+  #backdrop {
+    display: block;
+    position: fixed;
+    inset: -24px;
+    z-index: -1;
+    background: url('screenshots/backdrop.png') center / cover no-repeat;
+    filter: blur(14px) brightness(.55) saturate(1);
+    transform: scale(1.12);
+    opacity: .95;
+    pointer-events: none;
+  }
+  body {
+    gap: 6px;
+    background: linear-gradient(180deg, rgba(28,24,49,.32) 0%, rgba(17,14,27,.48) 42%, rgba(8,7,12,.68) 100%);
+  }
+  #stage {
+    width: 100vw;
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  html.standalone #stage {
+    padding: 0;
+  }
+  #stage::after {
+    display: none;
+  }
+  canvas {
+    border-radius: 0;
+  }
+  #pwa-bar {
+    padding: 2px 8px;
+  }
 }

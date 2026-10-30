@@ -73,6 +73,7 @@
       this.ctx = null;
       this.ready = false;
       this.muted = false;
+      this.paused = false;
       try { this.muted = localStorage.getItem('panelki.muted') === '1'; } catch (e) { /* ignore */ }
       this.mood = MOODS.stal;
       this.weather = 'clear';
@@ -88,7 +89,7 @@
 
     init() {
       if (this.ctx) {
-        if (this.ctx.state === 'suspended') this.ctx.resume();
+        if (this.ctx.state === 'suspended' && !this.paused) this.ctx.resume();
         return;
       }
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -222,6 +223,24 @@
           this.playing = true;
           this.step = 0;
           this.nextTime = this.ctx.currentTime + 0.12;
+        }
+      }
+    }
+
+    setPaused(paused) {
+      this.paused = !!paused;
+      if (!this.ctx) return;
+      const ctx = this.ctx;
+      if (paused) {
+        this.playing = false;
+        if (ctx.state === 'running') {
+          ctx.suspend().catch(() => {});
+        }
+      } else {
+        ctx.resume().catch(() => {});
+        if (this.scene !== 'off') {
+          this.playing = true;
+          this.nextTime = ctx.currentTime + 0.12;
         }
       }
     }
@@ -509,6 +528,70 @@
       g.connect(this.sfxBus);
       osc.start(t);
       osc.stop(t + 0.4);
+    }
+
+    ufo() {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(180, t);
+      const lfo = ctx.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = 5.5;
+      const lg = ctx.createGain();
+      lg.gain.value = 80;
+      lfo.connect(lg);
+      lg.connect(osc.frequency);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.05, t + 0.15);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+      osc.connect(g);
+      g.connect(this.sfxBus);
+      osc.start(t);
+      lfo.start(t);
+      osc.stop(t + 1.6);
+      lfo.stop(t + 1.6);
+      this.notesPlayed += 2;
+    }
+
+    powerupDrop() {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, t);
+      osc.frequency.exponentialRampToValueAtTime(1300, t + 0.35);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.045, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      osc.connect(g);
+      g.connect(this.sfxBus);
+      osc.start(t);
+      osc.stop(t + 0.5);
+      this.notesPlayed++;
+    }
+
+    powerup() {
+      if (!this.ctx || this.muted) return;
+      const ctx = this.ctx;
+      const t = ctx.currentTime;
+      const notes = [72, 76, 79, 84];
+      notes.forEach((n, i) => {
+        this.tone({
+          time: t + i * 0.07,
+          freq: midiFreq(n),
+          dur: i === 3 ? 0.35 : 0.09,
+          type: 'square',
+          vol: 0.055,
+          bus: 'sfx',
+          delaySend: true
+        });
+      });
     }
 
     squeak() {
