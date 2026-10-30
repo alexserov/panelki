@@ -1,0 +1,36 @@
+{
+  "id": "./",
+  "name": "ПАНЕЛЬКИ — tower blocks",
+  "short_name": "ПАНЕЛЬКИ",
+  "description": "Восьмибитная игра про строительство панельного дома: бомбы, погода, политические режимы, коты, крысы и инженеры-электрики.",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#060608",
+  "theme_color": "#0b0b10",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
