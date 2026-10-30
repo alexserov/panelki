@@ -345,7 +345,7 @@
     S.bombs = [];
     S.powerups = [];
     S.ufo = null;
-    S.ufoTimer = rnd(22, 38) / diffObj().ufo;
+    S.ufoTimer = rnd(16, 28) / diffObj().ufo;
     S.shield = false;
     S.slowTimer = 0;
     S.magnetDrops = 0;
