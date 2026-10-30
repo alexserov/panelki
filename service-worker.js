@@ -1,7 +1,7 @@
 /* ПАНЕЛЬКИ — service worker (offline app shell) */
 'use strict';
 
-const VERSION = 'panelki-v5';
+const VERSION = 'panelki-v8';
 const CACHE = VERSION + '-shell';
 const INDEX = new URL('./index.html', self.location).href;
 
@@ -13,14 +13,14 @@ const ASSETS = [
   './js/font.js',
   './js/audio.js',
   './js/art.js',
+  './js/ambient.js',
   './js/game.js',
   './js/pwa.js',
   './icons/icon-32.png',
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/maskable-512.png',
-  './screenshots/backdrop.png'
+  './icons/maskable-512.png'
 ];
 
 self.addEventListener('install', (event) => {

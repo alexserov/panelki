@@ -12,7 +12,7 @@
 
   const DIFFS = {
     easy: {
-      id: 'easy', name: 'ЛЕГКО', sub: 'ТИХИЙ ДВОР', color: '#7fe0b0',
+      id: 'easy', name: 'ЛЕГКО', sub: 'ТИХИЙ ДВОР · МАГНИТ', color: '#7fe0b0',
       speed: 0.78, bomb: 1.5, prochnost: 4, perfect: 4, ufo: 0.8
     },
     normal: {
@@ -331,6 +331,17 @@
     initWeatherParts();
   }
 
+  function goToTitle() {
+    if (S.mode === 'title') return;
+    audio.setPaused(false);
+    resetTitle();
+    try {
+      audio.setRegime(S.regime);
+      audio.setWeather(S.weather);
+      audio.setScene('title');
+    } catch (e) { /* audio may be locked */ }
+  }
+
   function startGame() {
     audio.init();
     S.mode = 'play';
@@ -391,6 +402,7 @@
     addBanner('СТРОЙКА НАЧАЛАСЬ', diffObj().name + ' · ' + regimeObj().name + ' · ' + weatherObj().name, diffObj().color, 3);
     addToast('ПРОБЕЛ / КЛИК — БРОСИТЬ ПАНЕЛЬ', '#a8a294');
     addToast('СВАЙП ВЛЕВО-ВПРАВО — ОТБИТЬ БОМБУ', '#a8a294');
+    if (S.diff === 'easy') addToast('ЛЕГКО: ПАНЕЛИ СЛЕГКА ПРИМАГНИЧИВАЮТСЯ', '#7fe0b0');
   }
 
   function makeHeld() {
@@ -1211,6 +1223,16 @@
       return;
     }
     f.vy += 980 * dt;
+    // EASY: the house gently pulls the panel towards the centre
+    if (S.diff === 'easy') {
+      const top = topPanel();
+      if (top) {
+        const off = top.x - f.x;
+        if (Math.abs(off) < 18) {
+          f.x += Math.sign(off) * Math.min(Math.abs(off), 34 * dt);
+        }
+      }
+    }
     const prevBottom = f.worldBottom;
     f.worldBottom -= f.vy * dt;
     if (f.worldBottom <= towerTop()) {
@@ -1411,6 +1433,10 @@
     BMFont.draw(ctx, 'М — ЗВУК', W / 2, 214, {
       scale: 1, color: '#8f8b7e', align: 'center'
     });
+    drawButtonBox(PAUSE_MENU_BTN, 'В ГЛАВНОЕ МЕНЮ', diffObj().color, 1);
+    BMFont.draw(ctx, 'Q — В МЕНЮ', W / 2, 258, {
+      scale: 1, color: '#6f6a5e', align: 'center'
+    });
   }
 
   function drawTower() {
@@ -1431,6 +1457,15 @@
     const sy = GROUND - (f.worldBottom + f.h - S.camY);
     if (sy > H + 40) return;
     Art.drawPanel(ctx, f.x, sy, f.w, f.h, f.spec, S.t, {});
+    if (S.diff === 'easy' && !f.tumble) {
+      const top = topPanel();
+      if (top && Math.abs(top.x - f.x) < 22) {
+        ctx.fillStyle = 'rgba(127,224,176,.2)';
+        ctx.fillRect(Math.round(f.x), Math.round(sy + f.h - 1), Math.round(f.w), 1);
+        ctx.fillStyle = 'rgba(127,224,176,.1)';
+        ctx.fillRect(Math.round(f.x) - 1, Math.round(sy + f.h - 3), Math.round(f.w) + 2, 2);
+      }
+    }
   }
 
   function drawGroundCreatures() {
@@ -1692,6 +1727,14 @@
   }
 
   const DIFF_MENU = { y: 90, h: 16, w: 60, gap: 4 };
+  const START_BTN = { x: W / 2 - 74, y: 176, w: 148, h: 24 };
+  const PAUSE_MENU_BTN = { x: W / 2 - 72, y: 236, w: 144, h: 18 };
+  const OVER_NEW_BTN = { x: W / 2 - 78, y: 244, w: 156, h: 18 };
+  const OVER_MENU_BTN = { x: W / 2 - 70, y: 268, w: 140, h: 18 };
+
+  function hitRect(r, x, y) {
+    return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  }
 
   function diffBox(i) {
     const total = DIFF_ORDER.length * DIFF_MENU.w + (DIFF_ORDER.length - 1) * DIFF_MENU.gap;
@@ -1704,6 +1747,22 @@
     S.diff = id;
     try { localStorage.setItem('panelki.diff', id); } catch (e) { /* ignore */ }
     if (!silent) audio.click();
+  }
+
+  function drawButtonBox(r, label, color, scale) {
+    scale = scale || 1;
+    ctx.fillStyle = 'rgba(12,10,16,.88)';
+    ctx.fillRect(r.x, r.y, r.w, r.h);
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.55;
+    ctx.fillRect(r.x, r.y, r.w, 1);
+    ctx.fillRect(r.x, r.y + r.h - 1, r.w, 1);
+    ctx.fillRect(r.x, r.y, 1, r.h);
+    ctx.fillRect(r.x + r.w - 1, r.y, 1, r.h);
+    ctx.globalAlpha = 1;
+    BMFont.draw(ctx, label, r.x + r.w / 2, r.y + Math.round((r.h - 7 * scale) / 2), {
+      scale, color, align: 'center', shadow: '#000'
+    });
   }
 
   function drawTitle() {
@@ -1734,7 +1793,7 @@
     });
 
     // difficulty selector
-    BMFont.draw(ctx, 'СЛОЖНОСТЬ', W / 2, 78, { scale: 1, color: '#9c9888', align: 'center' });
+    BMFont.draw(ctx, 'СЛОЖНОСТЬ · 1/2/3', W / 2, 78, { scale: 1, color: '#9c9888', align: 'center' });
     for (let i = 0; i < DIFF_ORDER.length; i++) {
       const id = DIFF_ORDER[i];
       const d = DIFFS[id];
@@ -1758,23 +1817,35 @@
     }
 
     const titleBest = bestFor(S.diff);
-    BMFont.draw(ctx, diffObj().sub + (titleBest > 0 ? ' · РЕКОРД ' + titleBest : ''), W / 2, 166, {
+    BMFont.draw(ctx, diffObj().sub + (titleBest > 0 ? ' · РЕКОРД ' + titleBest : ''), W / 2, 164, {
       scale: 1, color: '#c9a05a', align: 'center', alpha: 0.9
     });
     const pulse = 0.6 + 0.4 * Math.abs(Math.sin(S.t * 2.6));
-    BMFont.draw(ctx, 'НАЖМИ ПРОБЕЛ', W / 2, 178, {
-      scale: 2, color: '#e8e2cf', align: 'center', shadow: '#000', alpha: pulse
+    const b = START_BTN;
+    ctx.fillStyle = 'rgba(14,12,18,.88)';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = diffObj().color;
+    ctx.globalAlpha = 0.25 + pulse * 0.35;
+    ctx.fillRect(b.x - 2, b.y - 2, b.w + 4, 2);
+    ctx.fillRect(b.x - 2, b.y + b.h, b.w + 4, 2);
+    ctx.fillRect(b.x - 2, b.y - 2, 2, b.h + 4);
+    ctx.fillRect(b.x + b.w, b.y - 2, 2, b.h + 4);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = diffObj().color;
+    ctx.fillRect(b.x, b.y, b.w, 1);
+    ctx.fillRect(b.x, b.y + b.h - 1, b.w, 1);
+    ctx.fillRect(b.x, b.y, 1, b.h);
+    ctx.fillRect(b.x + b.w - 1, b.y, 1, b.h);
+    BMFont.draw(ctx, 'НАЧАТЬ ИГРУ', W / 2, b.y + 6, {
+      scale: 2, color: '#e8e2cf', align: 'center', shadow: '#000'
     });
-    BMFont.draw(ctx, 'ИЛИ ВЫБЕРИ СЛОЖНОСТЬ И КОСНИСЬ ЭКРАНА', W / 2, 196, {
-      scale: 1, color: '#9c9888', align: 'center'
-    });
-    BMFont.draw(ctx, 'ПРОБЕЛ / КЛИК — БРОСИТЬ ПАНЕЛЬ', W / 2, 208, {
+    BMFont.draw(ctx, 'ПРОБЕЛ / ВВОД', W / 2, 204, {
       scale: 1, color: '#8f8b7e', align: 'center'
     });
-    BMFont.draw(ctx, 'СВАЙП ВЛЕВО ИЛИ ВПРАВО — ОТБИТЬ БОМБУ', W / 2, 220, {
+    BMFont.draw(ctx, 'ПРОБЕЛ / КЛИК — БРОСИТЬ ПАНЕЛЬ', W / 2, 216, {
       scale: 1, color: '#8f8b7e', align: 'center'
     });
-    BMFont.draw(ctx, '1/2/3 — СЛОЖНОСТЬ · Р — ПАУЗА', W / 2, 232, {
+    BMFont.draw(ctx, 'СВАЙП — ОТБИТЬ БОМБУ · Р — ПАУЗА', W / 2, 228, {
       scale: 1, color: '#6f6a5e', align: 'center'
     });
   }
@@ -1853,14 +1924,13 @@
     });
 
     if (S.overTimer > 0.9) {
-      const pulse = 0.6 + 0.4 * Math.abs(Math.sin(S.t * 2.8));
-      ctx.fillStyle = 'rgba(5,5,9,.72)';
-      ctx.fillRect(W / 2 - 112, 246, 224, 12);
-      BMFont.draw(ctx, 'ПРОБЕЛ / КОСНИСЬ — НОВЫЙ ДОМ', W / 2, 250, {
-        scale: 1, color: '#e8e2cf', align: 'center', shadow: '#000', alpha: pulse
+      drawButtonBox(OVER_NEW_BTN, 'НОВЫЙ ДОМ', '#e8e2cf', 1);
+      drawButtonBox(OVER_MENU_BTN, 'В ГЛАВНОЕ МЕНЮ', '#9c9888', 1);
+      BMFont.draw(ctx, 'ПРОБЕЛ — НОВЫЙ ДОМ · Q — В МЕНЮ', W / 2, 292, {
+        scale: 1, color: '#6f6a5e', align: 'center'
       });
     }
-    BMFont.draw(ctx, 'ПАНЕЛЬКИ · 8 БИТ · ЛЕНФИЛЬМ 1985', W / 2, 266, {
+    BMFont.draw(ctx, 'ПАНЕЛЬКИ · 8 БИТ · ЛЕНФИЛЬМ 1985', W / 2, 306, {
       scale: 1, color: '#56534a', align: 'center'
     });
   }
@@ -1899,19 +1969,22 @@
         const b = diffBox(i);
         if (pos.x >= b.x && pos.x <= b.x + b.w && pos.y >= b.y && pos.y <= b.y + b.h) {
           setDifficulty(DIFF_ORDER[i]);
-          startGame();
           return;
         }
       }
-      startGame();
+      if (hitRect(START_BTN, pos.x, pos.y)) startGame();
       return;
     }
     if (S.mode === 'over') {
-      if (S.overTimer > 0.9) startGame();
+      if (S.overTimer > 0.9) {
+        if (hitRect(OVER_NEW_BTN, pos.x, pos.y)) startGame();
+        else if (hitRect(OVER_MENU_BTN, pos.x, pos.y)) goToTitle();
+      }
       return;
     }
     if (S.paused) {
-      togglePause(false);
+      if (hitRect(PAUSE_MENU_BTN, pos.x, pos.y)) goToTitle();
+      else togglePause(false);
       return;
     }
     if (pos.x >= 2 && pos.x <= 20 && pos.y >= 2 && pos.y <= 20) {
@@ -1959,8 +2032,9 @@
     const isUp = key === 'ArrowUp' || key === 'w' || key === 'W' || key === 'ц' || key === 'Ц';
     const isDown = key === 'ArrowDown' || key === 's' || key === 'S' || key === 'ы' || key === 'Ы';
     const isPause = key === 'p' || key === 'P' || key === 'з' || key === 'З' || key === 'Escape' || key === 'Esc';
+    const isMenuKey = key === 'q' || key === 'Q' || key === 'й' || key === 'Й' || key === 'Backspace';
     const isDigit = key === '1' || key === '2' || key === '3';
-    if (isSpace || isLeft || isRight || isUp || isDown || isPause || isDigit) e.preventDefault();
+    if (isSpace || isLeft || isRight || isUp || isDown || isPause || isDigit || key === 'Backspace') e.preventDefault();
     try { audio.init(); } catch (err) { /* ignore */ }
 
     if (key === 'm' || key === 'M' || key === 'ь' || key === 'Ь') {
@@ -1980,12 +2054,14 @@
       return;
     }
     if (S.mode === 'over') {
-      if (isSpace && S.overTimer > 0.9) startGame();
+      if (isMenuKey || key === 'Escape' || key === 'Esc') goToTitle();
+      else if (isSpace && S.overTimer > 0.9) startGame();
       return;
     }
 
     if (S.paused) {
-      if (isPause || isSpace) togglePause(false);
+      if (isMenuKey) goToTitle();
+      else if (isPause || isSpace) togglePause(false);
       return;
     }
     if (isPause) {
@@ -2026,12 +2102,19 @@
     const dt = Math.min(0.05, Math.max(0, (ts - last) / 1000));
     last = ts;
     update(dt);
+    if (window.Ambient) {
+      Ambient.update(dt);
+      Ambient.draw();
+    }
     render();
     requestAnimationFrame(frame);
   }
 
   resetTitle();
   fit();
+  try {
+    if (window.Ambient) Ambient.init();
+  } catch (e) { /* ambient is decorative */ }
   try {
     audio.init();
     audio.setRegime(S.regime);

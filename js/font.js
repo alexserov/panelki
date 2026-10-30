@@ -85,6 +85,7 @@
   // Latin aliases for keys shown in the UI
   GLYPHS['P'] = GLYPHS['Р'];
   GLYPHS['M'] = GLYPHS['М'];
+  GLYPHS['Q'] = '01110/10001/10001/10001/10101/10010/01101'.split('/');
 
   const FALLBACK = GLYPHS['?'];
   const cache = new Map();
